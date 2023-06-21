@@ -21,9 +21,15 @@ const routes = [
       import(/* webpackChunkName: "about" */ "../views/AboutView.vue"),
   },
   {
+    path: "/wg-itsm",
+    name: "itsm",
+    component: () => import("../views/ItsmView.vue"),
+  },
+  {
     path: "/relation",
     name: "relation",
     component: () => import("../views/relation/RelationView.vue"),
+    meta: { keepAlive: true },
     children: [
       {
         path: "/relationList",
@@ -41,6 +47,7 @@ const routes = [
 
 const router = new VueRouter({
   routes,
+  mode: "history",
 });
 
 export default router;

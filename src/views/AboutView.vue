@@ -4,6 +4,7 @@
     <h2>searchText: {{ searchText }}</h2>
     <input @input="debounceFn" />
     <button @click="goRelation">go relation</button>
+    <button @click="goRelationList">go relationList</button>
   </div>
 </template>
 
@@ -26,9 +27,21 @@ export default {
     // this.debounceFn();
     // this.debounceFn.flush();
   },
+  deactivated() {
+    console.log("About deactivated");
+  },
+  activated() {
+    console.log("About activated");
+  },
+  destroyed() {
+    console.log("About unmounted");
+  },
   methods: {
     goRelation() {
       this.$router.push({ name: "relation" });
+    },
+    goRelationList() {
+      this.$router.push({ name: "RelationList" });
     },
     test(e) {
       this.debounceFn(e);

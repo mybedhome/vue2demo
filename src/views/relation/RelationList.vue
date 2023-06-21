@@ -30,6 +30,9 @@ export default {
   mounted() {
     console.log("relationlist mounted");
   },
+  destroyed() {
+    console.log("relativeList unmounted");
+  },
   deactivated() {
     console.log("relativeList deactivated");
   },
