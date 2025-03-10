@@ -5,6 +5,8 @@
     <input @input="debounceFn" />
     <button @click="goRelation">go relation</button>
     <button @click="goRelationList">go relationList</button>
+    <button @click="handleCount">computed: {{ count }}</button>
+    <el-button @click="add">add</el-button>
   </div>
 </template>
 
@@ -15,10 +17,17 @@ export default {
   data() {
     return {
       searchText: "",
+      count: 0,
     };
   },
+  computed: {
+    doubleCount() {
+      console.log("doubleCount", this.count);
+      return this.count * 2;
+    },
+  },
   created() {
-    console.log("about created");
+    console.log("about created", this.doubleCount);
     this.debounceFn = throttle(this.onInput, 3000, {
       // trailing: true,
       // leading: false,
@@ -37,6 +46,16 @@ export default {
     console.log("About unmounted");
   },
   methods: {
+    add() {
+      this.tableData.push({ name: "", age: "" });
+    },
+    handleCount() {
+      this.count = this.count + 1;
+      // this.run();
+    },
+    async run() {
+      await Promise.resolve(this.doubleCount);
+    },
     goRelation() {
       this.$router.push({ name: "relation" });
     },
