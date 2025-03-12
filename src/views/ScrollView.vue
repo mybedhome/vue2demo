@@ -7,7 +7,7 @@
       <infinite-scroll-dropdown
         v-model="selectedUser"
         placeholder="请选择用户"
-        :label-key="'firstName'"
+        :label-key="'lastName'"
         :value-key="'id'"
         :fetch-method="fetchUsers"
         @change="handleUserChange"
@@ -35,17 +35,17 @@ export default {
   },
   methods: {
     fetchData() {
-      return fetch(
-        "https://dummyjson.com/users?limit=5&skip=10&select=firstName,age"
-      ).then((res) => res.json());
+      const url = "https://dummyjson.com/users/search";
+      // const url = 'https://dummyjson.com/users?limit=5&skip=10&select=firstName,age'
+      return fetch(url).then((res) => res.json());
     },
     // 模拟从服务器获取用户数据
-    async fetchUsers({ page, pageSize }) {
+    async fetchUsers({ page, pageSize, keyword }) {
       // 在实际应用中，这里应该是一个API调用
       console.log(`Fetching users: page ${page}, pageSize ${pageSize}`);
-      const url = `https://dummyjson.com/users?limit=${pageSize}&skip=${
+      const url = `https://dummyjson.com/users/search?q=${keyword}&limit=${pageSize}&skip=${
         (page - 1) * pageSize
-      }&select=firstName,age`;
+      }&select=lastName,age`;
       const data = await fetch(url).then((res) => res.json());
       console.log("data", data);
       return {

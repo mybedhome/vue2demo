@@ -8,14 +8,16 @@
     :loading="loading"
     @focus="handleFocus"
     @change="handleChange"
-    :remote="true"
-    :remote-method="remoteMethod"
+    @visible-change="handleVisibleChange"
     :filterable="true"
+    :filter-method="remoteMethod"
+    @keyup.enter.native="handleEnter"
     popper-class="virtual-select-dropdown"
   >
-    <div class="virtual-select-wrapper2" v-if="options.length > 0">
+    <div class="virtual-select-wrapper" v-if="options.length > 0">
       <virtual-list
-        style="height: 160px; overflow-y: auto"
+        style="height: 250px; overflow-y: auto"
+        ref="virtualList"
         :data-key="dataKey"
         :data-sources="options"
         :data-component="optionComponent"
@@ -25,7 +27,7 @@
           valueKey,
           labelKey,
         }"
-        @tobottom="loadMore"
+        @tobottom="handleToBottom"
       />
     </div>
     <el-option v-else :value="'loading'" :label="noDataText" disabled />
@@ -34,7 +36,7 @@
 
 <script>
 import VirtualList from "vue-virtual-scroll-list";
-import { debounce } from "lodash";
+// import { debounce } from "lodash";
 import { h } from "vue";
 
 export default {
@@ -73,7 +75,7 @@ export default {
     },
     pageSize: {
       type: Number,
-      default: 20,
+      default: 60,
     },
     valueKey: {
       type: String,
@@ -128,9 +130,38 @@ export default {
     },
   },
   created() {
-    this.remoteMethod = debounce(this.fetchData, 300);
+    // this.remoteMethod = debounce(this.fetchData, 300);
+    this.remoteMethod = () => {};
   },
   methods: {
+    handleEnter(evt) {
+      console.log("enter", evt.target.value);
+      this.fetchData(evt.target.value);
+    },
+    async handleVisibleChange(visible) {
+      console.log("visible", visible);
+      if (visible && this.$refs.virtualList) {
+        await this.handleToBottom();
+        this.$refs.virtualList.reset();
+        // 如果有选中值，滚动到第一个选中项的位置
+        if (this.selectedValue) {
+          const selectedValues = Array.isArray(this.selectedValue)
+            ? this.selectedValue
+            : [this.selectedValue];
+          const firstSelectedIndex = this.options.findIndex((item) =>
+            selectedValues.includes(item[this.valueKey])
+          );
+          console.log("firstSelectedIndex", firstSelectedIndex);
+
+          if (firstSelectedIndex > -1) {
+            this.selectedPosition = firstSelectedIndex;
+            this.$nextTick(() => {
+              this.$refs.virtualList.scrollToIndex(firstSelectedIndex);
+            });
+          }
+        }
+      }
+    },
     async fetchData(query = "") {
       if (!this.hasMore && this.keyword === query) return;
 
@@ -166,10 +197,10 @@ export default {
     handleChange(value) {
       this.$emit("change", value);
     },
-    loadMore() {
+    async handleToBottom() {
       if (!this.loading && this.hasMore) {
         this.page += 1;
-        this.fetchData(this.keyword);
+        await this.fetchData(this.keyword);
       }
     },
   },
