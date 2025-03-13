@@ -55,7 +55,7 @@ export default {
     },
     multiple: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     disabled: {
       type: Boolean,
@@ -75,7 +75,7 @@ export default {
     },
     pageSize: {
       type: Number,
-      default: 60,
+      default: 20,
     },
     valueKey: {
       type: String,
@@ -136,15 +136,20 @@ export default {
   methods: {
     handleEnter(evt) {
       console.log("enter", evt.target.value);
+      this.page = 1;
       this.fetchData(evt.target.value);
     },
     async handleVisibleChange(visible) {
       console.log("visible", visible);
       if (visible && this.$refs.virtualList) {
-        await this.handleToBottom();
-        this.$refs.virtualList.reset();
         // 如果有选中值，滚动到第一个选中项的位置
-        if (this.selectedValue) {
+        const hasValue = Array.isArray(this.selectedValue)
+          ? this.selectedValue.length > 0
+          : !!this.selectedValue;
+        if (hasValue) {
+          // 预加载下一页的数据
+          await this.handleToBottom();
+          this.$refs.virtualList.reset();
           const selectedValues = Array.isArray(this.selectedValue)
             ? this.selectedValue
             : [this.selectedValue];
@@ -159,6 +164,8 @@ export default {
               this.$refs.virtualList.scrollToIndex(firstSelectedIndex);
             });
           }
+        } else {
+          this.$refs.virtualList.reset();
         }
       }
     },
@@ -174,7 +181,7 @@ export default {
           pageSize: this.pageSize,
           keyword: this.keyword,
         });
-
+        console.log("result=", result);
         if (this.page === 1) {
           this.options = result.data || [];
         } else {
