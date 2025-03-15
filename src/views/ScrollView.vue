@@ -8,7 +8,8 @@
         v-model="selectedUser"
         placeholder="请选择用户"
         :label-key="'lastName'"
-        :value-key="'id'"
+        :value-key="'lastName'"
+        :multiple="true"
         :fetch-method="fetchUsers"
         @change="handleUserChange"
       />
@@ -22,16 +23,25 @@
 
 <script>
 import InfiniteScrollDropdown from "../components/infinite-scroll-dropdown.vue";
-
+import testData from "../components/data.json";
 export default {
   components: {
     InfiniteScrollDropdown,
   },
   data() {
     return {
-      selectedUser: "",
+      selectedUser: [],
       userList: [],
+      testData,
     };
+  },
+  mounted() {
+    this.fetchUsers({ page: 1, pageSize: 20, queryText: "Cook" }).then(
+      (res) => {
+        this.userList = res.data;
+        // this.selectedUser = [this.userList[0].lastName];
+      }
+    );
   },
   methods: {
     fetchData() {
@@ -40,10 +50,10 @@ export default {
       return fetch(url).then((res) => res.json());
     },
     // 模拟从服务器获取用户数据
-    async fetchUsers({ page, pageSize, keyword }) {
+    async fetchUsers({ page, pageSize, queryText }) {
       // 在实际应用中，这里应该是一个API调用
       console.log(`Fetching users: page ${page}, pageSize ${pageSize}`);
-      const url = `https://dummyjson.com/users/search?q=${keyword}&limit=${pageSize}&skip=${
+      const url = `https://dummyjson.com/users/search?q=${queryText}&limit=${pageSize}&skip=${
         (page - 1) * pageSize
       }&select=lastName,age`;
       const data = await fetch(url).then((res) => res.json());

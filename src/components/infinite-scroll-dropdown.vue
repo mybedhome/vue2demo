@@ -5,21 +5,21 @@
     :multiple="multiple"
     :disabled="disabled"
     :clearable="clearable"
-    :loading="loading"
+    :filterable="true"
+    :filter-method="remoteMethod"
+    v-bind="$attrs"
     @focus="handleFocus"
     @change="handleChange"
     @visible-change="handleVisibleChange"
-    :filterable="true"
-    :filter-method="remoteMethod"
     @keyup.enter.native="handleEnter"
     popper-class="virtual-select-dropdown"
   >
-    <div class="virtual-select-wrapper" v-if="options.length > 0">
+    <div v-if="localOptions.length > 0">
       <virtual-list
-        style="height: 250px; overflow-y: auto"
+        style="max-height: 274px; overflow-y: auto"
         ref="virtualList"
-        :data-key="dataKey"
-        :data-sources="options"
+        :data-key="valueKey"
+        :data-sources="localOptions"
         :data-component="optionComponent"
         :estimate-size="34"
         :keeps="20"
@@ -27,10 +27,31 @@
           valueKey,
           labelKey,
         }"
+        footer-class="virtual-footer"
         @tobottom="handleToBottom"
-      />
+      >
+        <template #footer>
+          <div v-if="loading && hasMore" class="bottom-loading">
+            <div class="loading-spinner"></div>
+          </div>
+        </template>
+      </virtual-list>
     </div>
-    <el-option v-else :value="'loading'" :label="noDataText" disabled />
+
+    <el-option
+      v-else
+      :value="'loading'"
+      :label="noDataText"
+      disabled
+      class="loading-option"
+    >
+      <template v-if="loading">
+        <div class="loading-spinner"></div>
+      </template>
+      <template v-else>
+        {{ noDataText }}
+      </template>
+    </el-option>
   </el-select>
 </template>
 
@@ -38,6 +59,31 @@
 import VirtualList from "vue-virtual-scroll-list";
 // import { debounce } from "lodash";
 import { h } from "vue";
+
+function uniqBy(array, iteratee) {
+  if (!Array.isArray(array)) {
+    return [];
+  }
+
+  return array.reduce((acc, current) => {
+    // 使用 iteratee 函数或属性来获取当前元素的唯一标识
+    const key =
+      typeof iteratee === "function" ? iteratee(current) : current[iteratee];
+
+    // 检查是否已经存在具有相同标识的元素
+    if (
+      !acc.some((item) => {
+        const itemKey =
+          typeof iteratee === "function" ? iteratee(item) : item[iteratee];
+        return itemKey === key;
+      })
+    ) {
+      acc.push(current);
+    }
+
+    return acc;
+  }, []);
+}
 
 export default {
   name: "VirtualSelect",
@@ -49,9 +95,29 @@ export default {
       type: [String, Number, Array],
       default: "",
     },
-    placeholder: {
+    fetchMethod: {
+      type: Function,
+      required: true,
+    },
+    lazy: {
+      type: Boolean,
+      default: true,
+    },
+    valueKey: {
       type: String,
-      default: "请选择",
+      default: "id",
+    },
+    labelKey: {
+      type: String,
+      default: "name",
+    },
+    pageSize: {
+      type: Number,
+      default: 20,
+    },
+    options: {
+      type: Array,
+      default: () => [],
     },
     multiple: {
       type: Boolean,
@@ -65,36 +131,23 @@ export default {
       type: Boolean,
       default: true,
     },
+    placeholder: {
+      type: String,
+      default: "请选择",
+    },
     noDataText: {
       type: String,
-      default: "暂无数据",
-    },
-    fetchMethod: {
-      type: Function,
-      required: true,
-    },
-    pageSize: {
-      type: Number,
-      default: 20,
-    },
-    valueKey: {
-      type: String,
-      default: "value",
-    },
-    labelKey: {
-      type: String,
-      default: "label",
+      default: "无数据",
     },
   },
   data() {
     return {
       selectedValue: this.value,
-      options: [],
+      localOptions: [],
       loading: false,
-      keyword: "",
+      queryText: "",
       page: 1,
       hasMore: true,
-      dataKey: "id",
       optionComponent: {
         props: {
           source: {
@@ -128,19 +181,29 @@ export default {
     selectedValue(val) {
       this.$emit("input", val);
     },
+    options: {
+      immediate: true,
+      handler(val) {
+        this.localOptions = uniqBy(val, this.valueKey);
+      },
+    },
   },
   created() {
-    // this.remoteMethod = debounce(this.fetchData, 300);
+    // 给el-select的filter-method赋一个空函数，避免本地搜索
     this.remoteMethod = () => {};
   },
   methods: {
+    clearOptions() {
+      this.localOptions = [];
+      this.selectedValue = this.multiple ? [] : "";
+    },
     handleEnter(evt) {
-      console.log("enter", evt.target.value);
       this.page = 1;
+      this.localOptions = [];
+      this.hasMore = true;
       this.fetchData(evt.target.value);
     },
     async handleVisibleChange(visible) {
-      console.log("visible", visible);
       if (visible && this.$refs.virtualList) {
         // 如果有选中值，滚动到第一个选中项的位置
         const hasValue = Array.isArray(this.selectedValue)
@@ -149,14 +212,14 @@ export default {
         if (hasValue) {
           // 预加载下一页的数据
           await this.handleToBottom();
+
           this.$refs.virtualList.reset();
           const selectedValues = Array.isArray(this.selectedValue)
             ? this.selectedValue
             : [this.selectedValue];
-          const firstSelectedIndex = this.options.findIndex((item) =>
+          const firstSelectedIndex = this.localOptions.findIndex((item) =>
             selectedValues.includes(item[this.valueKey])
           );
-          console.log("firstSelectedIndex", firstSelectedIndex);
 
           if (firstSelectedIndex > -1) {
             this.selectedPosition = firstSelectedIndex;
@@ -170,44 +233,47 @@ export default {
       }
     },
     async fetchData(query = "") {
-      if (!this.hasMore && this.keyword === query) return;
+      if ((!this.hasMore && this.queryText === query) || !this.lazy) return;
 
-      this.keyword = query;
+      this.queryText = query;
       this.loading = true;
 
       try {
         const result = await this.fetchMethod({
           page: this.page,
           pageSize: this.pageSize,
-          keyword: this.keyword,
+          queryText: this.queryText,
         });
-        console.log("result=", result);
-        if (this.page === 1) {
-          this.options = result.data || [];
-        } else {
-          this.options = [...this.options, ...(result.data || [])];
-        }
-
-        this.hasMore = (result.data || []).length === this.pageSize;
+        const data = result.records || result.items || result.data || [];
+        this.localOptions = uniqBy(
+          [...this.localOptions, ...data],
+          this.valueKey
+        );
+        this.hasMore = data.length === this.pageSize;
       } catch (error) {
-        console.error("Failed to fetch options:", error);
+        console.error("列表数据获取失败: ", error);
       } finally {
         this.loading = false;
       }
     },
     handleFocus() {
-      if (this.options.length === 0) {
+      if (this.localOptions.length === 0) {
         this.page = 1;
         this.fetchData();
       }
     },
     handleChange(value) {
-      this.$emit("change", value);
+      const selected = this.localOptions.filter((item) => {
+        return this.multiple
+          ? value.includes(item[this.valueKey])
+          : item[this.valueKey] === value;
+      });
+      this.$emit("change", selected);
     },
     async handleToBottom() {
       if (!this.loading && this.hasMore) {
         this.page += 1;
-        await this.fetchData(this.keyword);
+        await this.fetchData(this.queryText);
       }
     },
   },
@@ -217,14 +283,56 @@ export default {
 <style>
 .virtual-select-dropdown {
   padding: 0 !important;
+  .el-select-dropdown__list {
+    padding: 0;
+  }
+  .el-select-dropdown__item.is-disabled {
+    cursor: not-allowed;
+    padding-right: 0;
+  }
+  .virtual-footer {
+    position: relative;
+  }
+}
+</style>
+
+<style scoped>
+.loading-option {
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  cursor: not-allowed;
+  text-align: center;
+}
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #409eff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+  vertical-align: middle;
+  display: inline-block;
 }
 
-/* .virtual-select-wrapper {
-  height: 100%;
-  max-height: 274px;
-} */
-.virtual-select-wrapper {
-  height: 164px;
-  overflow: auto;
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.bottom-loading {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  background-color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
 }
 </style>
